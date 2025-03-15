@@ -55,11 +55,11 @@ select * from summary_report
 
 -- PART D: extract raw data for detailed report
 insert into detailed_report (
-select actor.actor_id, film.film_id, film.title, film.release_year, film.rating, actor.first_name, actor.last_name, film.rental_rate
+select actor.actor_id, film.film_id, film.title, film.release_year, film.rating, actor_name, film.rental_rate
 from film
 join film_actor on (film.film_id = film_actor.film_id)
 join actor on (film_actor.actor_id = actor.actor_id)
-order by actor_id
+order by rental_rate
 );
 
 select * from detailed_report;
@@ -88,3 +88,40 @@ AFTER INSERT
 ON detailed_report
 FOR EACH STATEMENT
 EXECUTE PROCEDURE populate_summary();
+
+-- PART F: stored procedure to refresh the data
+
+CREATE PROCEDURE refresh_data() AS $$
+BEGIN
+	TRUNCATE TABLE detailed_report;
+	TRUNCATE TABLE summary_report;
+	INSERT INTO detailed_report (
+        actor_id int, 
+        film_id int, 
+        title varchar(50), 
+        release_year smallint, 
+        rating varchar(50), 
+        concat_name(first_name, last_name) varchar(100),
+        rental_rate smallint
+        );
+    select actor.actor_id, film.film_id, film.title, film.release_year, film.rating, actor_name, film.rental_rate
+    from film
+    join film_actor on (film.film_id = film_actor.film_id)
+    join actor on (film_actor.actor_id = actor.actor_id)
+    order by rental_rate
+END;
+$$ LANGUAGE plpgsql;
+
+-- Call procedure
+CALL refresh_data();
+
+-- Check tables
+
+SELECT * FROM detailed_report
+ORDER BY rental_rate
+
+SELECT * FROM summary report
+ORDER BY rental_rate
+
+
+-- 1. pgAgent is distributed by a third party but is able to be downloaded and used by Postgre SQL to automate scripts / tasks on a schedule
