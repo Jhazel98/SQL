@@ -16,7 +16,7 @@
 
 -- PART B: Function
 
-CREATE FUNCTION concat_name (first_name TEXT, last_name TEXT)
+CREATE OR REPLACE FUNCTION concat_name (first_name TEXT, last_name TEXT)
 RETURNS TEXT
 LANGUAGE plpgsql AS $$
 DECLARE
@@ -28,45 +28,44 @@ END;
 $$;
 
 --TEST FUNCTION
-SELECT actor_name('Jimmy', 'Fallon');
+SELECT concat_name('Jimmy', 'Fallon');
 
 -- PART C: detailed and summary tables
 -- DETAILED REPORT
 CREATE TABLE detailed_report (
-actor_id int,
-film_id int,
-title varchar(50),
-release_year smallint,
-rating varchar(7),
+actor_id INT,
+film_id INT,
+title VARCHAR(50),
+release_year SMALLINT,
+rating VARCHAR(7),
 actor_name VARCHAR(100),
-rental_rate smallint
+rental_rate SMALLINT
 );
 
 -- SUMMARY REPORT
 CREATE TABLE summary_report (
-actor_name varchar(100),
-rental_rate smallint,
-title varchar(50)
+actor_name VARCHAR(100),
+rental_rate SMALLINT,
+title VARCHAR(50)
 );
 
-select * from detailed_report;
-select * from summary_report
+SELECT * FROM detailed_report;
+SELECT * FROM summary_report
 
 
 
 -- PART E: create a trigger function
 
-CREATE FUNCTION populate_summary ()
+CREATE OR REPLACE FUNCTION populate_summary ()
 RETURNS TRIGGER
 LANGUAGE plpgsql
-AS
-$$
+AS $$
 BEGIN
 DELETE FROM summary_report;
 INSERT INTO summary_report (
-    SELECT actor_name, rental_rate, title
+    SELECT DISTINCT actor_name, rental_rate, title
     FROM detailed_report
-    ORDER BY rental_rate
+    WHERE rental_rate > 4
 );
 RETURN NEW;
 END;
@@ -80,46 +79,46 @@ EXECUTE PROCEDURE populate_summary();
 
 
 -- PART D: extract raw data for detailed report (place after part E)
-insert into detailed_report (
-select actor.actor_id, film.film_id, film.title, film.release_year, film.rating, actor_name, film.rental_rate
-from film
-join film_actor on (film.film_id = film_actor.film_id)
-join actor on (film_actor.actor_id = actor.actor_id)
-order by rental_rate
+INSERT INTO detailed_report (
+SELECT actor.actor_id, film.film_id, film.title, film.release_year, film.rating, concat_name(first_name, last_name), film.rental_rate
+FROM film
+JOIN film_actor ON (film.film_id = film_actor.film_id)
+JOIN actor ON (film_actor.actor_id = actor.actor_id)
+ORDER BY rental_rate
 );
 
-select * from detailed_report;
-select * from summary_report
+SELECT * FROM detailed_report;
+SELECT * FROM summary_report
 
 -- insert addition data for testing
 
 INSERT INTO detailed_report
-VALUES ('0','248','Spongebob','2010','PG-13','Lindsay','Lohan','4');
+VALUES ('0','248','Spongebob','2010','PG-13','Drake Radcliff','5');
 
 
 
 -- PART F: stored procedure to refresh the data
 
-CREATE PROCEDURE refresh_data() AS $$
+CREATE OR REPLACE PROCEDURE refresh_data() 
+LANGUAGE plpgsql AS $$
 BEGIN
-	TRUNCATE TABLE detailed_report;
-	TRUNCATE TABLE summary_report;
-	INSERT INTO detailed_report (
-        actor_id int, 
-        film_id int, 
-        title varchar(50), 
-        release_year smallint, 
-        rating varchar(50), 
-        concat_name(first_name, last_name) varchar(100),
-        rental_rate smallint
-        );
-    select actor.actor_id, film.film_id, film.title, film.release_year, film.rating, concat_name(first_name, last_name), film.rental_rate
-    from film
-    join film_actor on (film.film_id = film_actor.film_id)
-    join actor on (film_actor.actor_id = actor.actor_id)
-    order by rental_rate
+	DELETE FROM detailed_report;
+	DELETE FROM summary_report;
+	INSERT INTO detailed_report 
+        SELECT
+        actor.actor_id, 
+        film.film_id, 
+        film.title, 
+        film.release_year, 
+        film.rating, 
+        concat(first_name, last_name),
+        film.rental_rate
+    FROM film
+    JOIN film_actor ON film.film_id = film_actor.film_id
+    JOIN actor ON film_actor.actor_id = actor.actor_id
+    ORDER BY rental_rate;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 -- Call procedure
 CALL refresh_data();
@@ -127,10 +126,7 @@ CALL refresh_data();
 -- Check tables
 
 SELECT * FROM detailed_report
-ORDER BY rental_rate
-
 SELECT * FROM summary report
-ORDER BY rental_rate
 
 
 -- 1. pgAgent is distributed by a third party but is able to be downloaded and used by Postgre SQL to automate scripts / tasks on a schedule
